@@ -160,8 +160,9 @@ ADF.reg <- function(x, y){
     se3_0 <- mean((regr$resid)^3)
 
     theta_0 <- matrix(c(a_0, b_0, mux, sx2y0, se2_0, sx3y0, se3_0))
+    # ŒvŽZ (nlm: Non-Linear Minimiztion)
     rnlm    <- nlm(ADF.fmin, theta_0, s, ginv(w), iterlim=1000, hessian=TRUE)
-    retval <- list();
+    retval  <- list();
 
     # ƒ´^2 
     #chi2 <- rnlm$minimum * n
@@ -177,8 +178,9 @@ ADF.reg <- function(x, y){
     # p’l
     p <- pchisq(df=df, chi2, lower.tail=F)
 
-    # •W€Œë·‚Ì„’è (p.13)
-    #se <- sqrt( diag(solve(rnlm$hessian)) / n )
+    # •W€Œë·‚Ì„’è (p.13, expr 1.97)
+    # ‘Q‹ß“I‚È‹¤•ªŽUs—ñ
+    retval$se <- sqrt( diag(solve(rnlm$hessian)) / n )
 
     # ƒ‚ƒfƒ‹‚Ì“K‡«‚Ìâ‘Î•]‰¿
     # RMSEA
