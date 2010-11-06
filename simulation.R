@@ -23,8 +23,10 @@ for(b in B){
             xy_rejection <- 0
             yx_rejection <- 0
 
-            e_xy <- NULL # estimates for x -> y
-            e_yx <- NULL # estimates for y -> x
+            e_xy  <- NULL # estimates for x -> y
+            e_yx  <- NULL # estimates for y -> x
+            se_xy <- NULL # SE for x -> y
+            se_yx <- NULL # SE for y -> x
 
             repeat{
                 theta <- 1/sqrt(k) # xの分散を1にするためにthetaを設定
@@ -49,8 +51,10 @@ for(b in B){
                 if(retval_xy$rnlm$code <= 2 && retval_yx$rnlm$code <= 2){
 
                     # save
-                    e_xy <- rbind( e_xy, retval_xy$rnlm$estimate )
-                    e_yx <- rbind( e_yx, retval_yx$rnlm$estimate )
+                    e_xy  <- rbind( e_xy,  retval_xy$rnlm$estimate )
+                    e_yx  <- rbind( e_yx,  retval_yx$rnlm$estimate )
+                    se_xy <- rbind( se_xy, retval_xy$se )
+                    se_yx <- rbind( se_yx, retval_yx$se )
 
                     if(retval_xy$chi2 < retval_yx$chi2){
                         success <- success + 1
@@ -83,9 +87,10 @@ for(b in B){
             # save to files
 
             id <- sprintf("b%.02f-k%.02f-n%d", b, k, n)
-            write.csv(e_xy, file = sprintf("data/estimate-xy-%s.csv", id))
-
-            write.csv(e_yx, file = sprintf("data/estimate-yx-%s.csv", id))
+            write.csv(e_xy,  file = sprintf("data/e-xy-%s.csv", id))
+            write.csv(e_yx,  file = sprintf("data/e-yx-%s.csv", id))
+            write.csv(se_xy, file = sprintf("data/se-xy-%s.csv", id))
+            write.csv(se_yx, file = sprintf("data/se-yx-%s.csv", id))
         }
     }
 }
