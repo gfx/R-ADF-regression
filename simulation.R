@@ -3,11 +3,13 @@
 
 source("ADF.R")
 
-B <- c(0.8, 0.5, 0.2)                 # 回帰係数
-K <- c(2.5, 7.5)                      # 分布の歪み
-N <- c(50, 100, 200, 300, 500, 1000)  # サンプルの数
+B <- c(0.8, 0.5, 0.2)           # 回帰係数
+K <- c(2.5, 7.5)                # 分布の歪み
+N <- c(50, 100, 200, 300, 500)  # サンプルの数
 
-simu_n  <- 100 # シミュレーションをそれぞれ何回行うか
+simu_n  <- 1000 # シミュレーションをそれぞれ何回行うか
+
+estimates_title <- c("a", "b", "Mu x", "Sx2", "Se2", "Sx3", "Se3");
 
 for(b in B){
     for(k in K){
@@ -20,6 +22,9 @@ for(b in B){
 
             xy_rejection <- 0
             yx_rejection <- 0
+
+            e_xy <- NULL # estimates for x -> y
+            e_yx <- NULL # estimates for y -> x
 
             repeat{
                 theta <- 1/sqrt(k) # xの分散を1にするためにthetaを設定
@@ -42,6 +47,10 @@ for(b in B){
 
                 # xy/yx双方のコード値が2以下なら次に進む
                 if(retval_xy$rnlm$code <= 2 && retval_yx$rnlm$code <= 2){
+
+                    # save
+                    e_xy <- rbind( e_xy, retval_xy$rnlm$estimate )
+                    e_yx <- rbind( e_yx, retval_yx$rnlm$estimate )
 
                     if(retval_xy$chi2 < retval_yx$chi2){
                         success <- success + 1
@@ -70,6 +79,13 @@ for(b in B){
             # モデルの妥当性の比較（相対評価）
             cat(sprintf("success = %5d / %5d\n", success, i))
             flush.console(); # print()の結果を強制的に表示させる
+
+            # save to files
+
+            id <- sprintf("b%.02f-k%.02f-n%d", b, k, n)
+            write.csv(e_xy, file = sprintf("data/estimate-xy-%s.csv", id))
+
+            write.csv(e_yx, file = sprintf("data/estimate-yx-%s.csv", id))
         }
     }
 }

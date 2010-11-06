@@ -1,20 +1,20 @@
-# �Q�ߓI�ɕ��z�Ɏ��R�Ȑ����
+# 漸近的に分布に自由な推定量
 # ADF: Asymptotically Distribution Free estimator
 
 library(MASS)
 
-# nlm()�ւ̑�����
+# nlm()への第一引数
 ADF.fmin <- function(theta, s, w){
-    # ���f���̖��m���i�O���ϐ��ɑΉ�)
+    # モデルの未知数（外生変数に対応)
     a   <- theta[1]
     b   <- theta[2]
     Mux <- theta[3]
     Sx2 <- theta[4]
     Se2 <- theta[5]
     Sx3 <- theta[6]
-    Se3 <- theta[7] 
+    Se3 <- theta[7]
 
-    # ���f���̍Đ��l(�����ϐ��ɑΉ�)
+    # モデルの再生値(内生変数に対応)
     Muy  <- a   * Mux + b
     Sxy  <- a   * Sx2
     Sy2  <- a^2 * Sx2 + Se2
@@ -67,7 +67,7 @@ ADF.reg <- function(x, y){
     sx1y5 <- mean(dx^1 * dy^5)
     sx0y6 <- mean(dx^0 * dy^6)
 
-    # �d�ݕt��
+    # 重み付け
     v <- matrix(c(
         sx2y0,    # w[x,x]
         sx1y1,    # w[y,x]
@@ -132,7 +132,7 @@ ADF.reg <- function(x, y){
         sx0y6 - 6 * sx0y4 * sx0y2 - sx0y3^2 + 9 * sx0y2^3    # w[sy3,sy3]
     ))
 
-    # �Ίp���̔��Α������߂�
+    # 対角線の反対側も埋める
     w  <- matrix(0, 9, 9)
     ic <- 0
     for(j in 1:9){
@@ -142,16 +142,15 @@ ADF.reg <- function(x, y){
         }
     }
 
-    # �Ίp���̒l��␳
+    # 対角線の値を補正
     w <- w + t(w) - diag(diag(w))
 
 
-
-    # �W�{�̐ϗ�(1��,2��,3��)��Vector 
-    # �� �cVector�ɂ��邽�߂�matrix()�����Ă���
+    # 標本の積率(1次,2次,3次)のVector
+    # ※ 縦Vectorにするためにmatrix()をしている
     s <- matrix(c(mux, muy, sx2y0, sx1y1, sx0y2, sx3y0, sx2y1, sx1y2, sx0y3))
 
-    # ���m���̏����l (a, b, Mux, Sx2, Se2, Sx3, Se3)
+    # 未知数の初期値 (a, b, Mux, Sx2, Se2, Sx3, Se3)
     regr  <- lm(y~x)
     a_0   <- regr$coeff[2]
     b_0   <- regr$coeff[1]
@@ -160,33 +159,32 @@ ADF.reg <- function(x, y){
     se3_0 <- mean((regr$resid)^3)
 
     theta_0 <- matrix(c(a_0, b_0, mux, sx2y0, se2_0, sx3y0, se3_0))
-    # �v�Z (nlm: Non-Linear Minimiztion)
+    # 計算 (nlm: Non-Linear Minimiztion)
     rnlm    <- nlm(ADF.fmin, theta_0, s, ginv(w), iterlim=1000, hessian=TRUE)
     retval  <- list();
 
-    # ��^2 
+    # Χ^2
     #chi2 <- rnlm$minimum * n
 
-    # �C����^2 (Yuan-Bentler proposal) (Yuan & Bentler, 1997) 
-    # �� X^2���z�ɂ��߂��ߎ��l�ɂ��邽�߁C��^2�l�����Ȃ߂ɏC������i���p�������Ȃ��Ȃ�j
+    # 修正Χ^2 (Yuan-Bentler proposal) (Yuan & Bentler, 1997)
+    # ※ X^2分布により近い近似値にするため，Χ^2値を少なめに修正する（棄却数が少なくなる）
     chi2 <- rnlm$minimum * n / (1 + rnlm$minimum)
+    retval$chi2 <- chi2
 
-    # H0: �uy <- x ���������v
-    # H1: �uH0�ł͂Ȃ��v
-    # ���R�x df=2 (�ϗ�9�� - ���m��2��)
+    # H0: 「y <- x が正しい」
+    # H1: 「H0ではない」
+    # 自由度 df=2 (積率9個 - 未知数2個)
     df <- 2
-    # p�l
-    p <- pchisq(df=df, chi2, lower.tail=F)
+    retval$df <- df
 
-    # �W���덷�̐��� (p.13, expr 1.97)
-    # �Q�ߓI�ȋ����U�s��
+    # p値
+    retval$pvalue <- pchisq(df=df, chi2, lower.tail=FALSE)
+
+    # 標準誤差の推定 (p.13, expr 1.97)
+    # 漸近的な共分散行列
     retval$se <- sqrt( diag(solve(rnlm$hessian)) / n )
 
-    # ���f���̓K�����̐�Ε]��
-    # RMSEA
-#    sqrt( max( (chi2/n) / df - (1/ (n-1)), 0) )
-
-    # ���m���̐��茋��
+    # 未知数の推定結果
 #    retval$a   <- rnlm$estimate[1]
 #    retval$b   <- rnlm$estimate[2]
 #    retval$Mux <- rnlm$estimate[3]
@@ -195,17 +193,16 @@ ADF.reg <- function(x, y){
 #    retval$Sx3 <- rnlm$estimate[6]
 #    retval$Se3 <- rnlm$estimate[7]
 
-    retval$rnlm      <- rnlm
+    retval$rnlm  <- rnlm
 
-    retval$chi2      <- chi2
-    retval$df        <- df
-    retval$pvalue    <- p
-    #retval$se        <- se
+    # モデルの適合性の絶対評価
+    # RMSEA
+#    retval$RMSEA <- sqrt( max( (chi2/n) / df - (1/ (n-1)), 0) )
 
-    # ���f���̓K�����̑��Ε]��
-    # �l���������قǓK���x������
+    # モデルの適合性の相対評価
+    # 値が小さいほど適合度が高い
 
-    # AIC: Akaike's Information Criterion �Ԓr���ʊ
+    # AIC: Akaike's Information Criterion 赤池情報量基準
 #    retval$AIC <- chi2 - 2 * df
 
     # CAIC: Consistent AIC
@@ -223,7 +220,7 @@ skewness <- function(v){
 
 ADF.plot <- function(x, y, filename = "", title = "", width = 800, height = 600){
 
-    if(filename != ""){ # �t�@�C�������w�肳��Ă���΃t�@�C���ɏo��
+    if(filename != ""){ # ファイル名が指定されていればファイルに出力
         png(filename = filename, width = width, height = height,
             units = "px", pointsize = 12, bg = "white", res = NA)
     }
@@ -234,9 +231,9 @@ ADF.plot <- function(x, y, filename = "", title = "", width = 800, height = 600)
 
     abline(b=retval$rnlm$estimate[1], a=retval$rnlm$estimate[2], col="blue")
 
-    b <- retval$rnlm$estimate[1] # �P��A�W������l
+    b <- retval$rnlm$estimate[1] # 単回帰係数推定値
 
-# �ʏ�̒P��A����
+# 通常の単回帰分析
 #    rlm = lm(y~x)
 #    abline(a=rlm$coefficients[1], b=rlm$coefficients[2], col="red", lty=4)
 
