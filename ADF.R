@@ -1,5 +1,6 @@
 # 漸近的に分布に自由な推定量
 # ADF: Asymptotically Distribution Free estimator
+# 豊田秀樹(2007), 共分散構造分析[理論編]
 
 library(MASS)
 
@@ -29,6 +30,7 @@ ADF.fmin <- function(theta, s, w){
     t(d) %*% w %*% (d) # text p.7, expr 1.39
 }
 
+# single regression analysis
 ADF.reg <- function(x, y){
     n     <- length(x)
 
@@ -152,18 +154,25 @@ ADF.reg <- function(x, y){
 
     # 未知数の初期値 (a, b, Mux, Sx2, Se2, Sx3, Se3)
     regr  <- lm(y~x)
-    a_0   <- regr$coeff[2]
-    b_0   <- regr$coeff[1]
+    a_0   <- regr$coefficients[2] # beta
+    b_0   <- regr$coefficients[1] # alpha
 
-    se2_0 <- mean((regr$resid)^2)
-    se3_0 <- mean((regr$resid)^3)
+    se2_0 <- mean( (regr$residuals)^2 )
+    se3_0 <- mean( (regr$residuals)^3 )
 
     theta_0 <- matrix(c(a_0, b_0, mux, sx2y0, se2_0, sx3y0, se3_0))
-    # 計算 (nlm: Non-Linear Minimiztion)
-    rnlm    <- nlm(ADF.fmin, theta_0, s, ginv(w), iterlim=1000, hessian=TRUE)
-    retval  <- list();
+    # calculate (nlm: Non-Linear Minimiztion)
+    rnlm <- nlm(ADF.fmin, theta_0, s, ginv(w), iterlim=1000, hessian=TRUE)
+    rnlm$n <- n
+    return(rnlm)
+}
 
-    # Χ^2
+ADF.res <- function(rnlm) {
+    n <- rnlm$n
+
+    retval  <- list()
+
+    # Χ^2 (normal)
     #chi2 <- rnlm$minimum * n
 
     # 修正Χ^2 (Yuan-Bentler proposal) (Yuan & Bentler, 1997)
@@ -182,7 +191,7 @@ ADF.reg <- function(x, y){
 
     # 標準誤差の推定 (p.13, expr 1.97)
     # 漸近的な共分散行列
-    retval$se <- sqrt( diag(solve(rnlm$hessian)) / n )
+    retval$se <- sqrt( diag( solve(rnlm$hessian) ) / n )
 
     # 未知数の推定結果
 #    retval$a   <- rnlm$estimate[1]
@@ -193,23 +202,21 @@ ADF.reg <- function(x, y){
 #    retval$Sx3 <- rnlm$estimate[6]
 #    retval$Se3 <- rnlm$estimate[7]
 
-    retval$rnlm  <- rnlm
-
     # モデルの適合性の絶対評価
     # RMSEA
-#    retval$RMSEA <- sqrt( max( (chi2/n) / df - (1/ (n-1)), 0) )
+    retval$RMSEA <- sqrt( max( (chi2/n) / df - (1/ (n-1)), 0) )
 
     # モデルの適合性の相対評価
     # 値が小さいほど適合度が高い
 
     # AIC: Akaike's Information Criterion 赤池情報量基準
-#    retval$AIC <- chi2 - 2 * df
+    retval$AIC <- chi2 - 2 * df
 
     # CAIC: Consistent AIC
-#    retval$CAIC <- chi2 - (log(n)+1) * df
+    retval$CAIC <- chi2 - (log(n)+1) * df
 
     # SBC: Schwarz Bayesian Criterion
-#    retval$SBC <- chi2 - log(n) * df
+    retval$SBC <- chi2 - log(n) * df
 
     return(retval)
 }
@@ -227,11 +234,12 @@ ADF.plot <- function(x, y, filename = "", title = "", width = 800, height = 600)
 
     plot(x, y, xlab = deparse(substitute(x)), ylab = deparse(substitute(y)));
 
-    retval = ADF.reg(x, y);
+    rnlm   <- ADF.reg(x, y);
+    retval <- ADF.res(rnlm);
 
-    abline(b=retval$rnlm$estimate[1], a=retval$rnlm$estimate[2], col="blue")
+    abline(b=rnlm$estimate[1], a=rnlm$estimate[2], col="blue")
 
-    b <- retval$rnlm$estimate[1] # 単回帰係数推定値
+    b <- rnlm$estimate[1] # 単回帰係数推定値
 
 # 通常の単回帰分析
 #    rlm = lm(y~x)

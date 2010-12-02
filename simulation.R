@@ -3,13 +3,13 @@
 
 source("ADF.R")
 
-B <- c(0.8, 0.5, 0.2)           # 回帰係数
-K <- c(2.5, 7.5)                # 分布の歪み
-N <- c(50, 100, 200, 300, 500)  # サンプルの数
+B <- c(0.8, 0.5, 0.2)                 # 回帰係数
+K <- c(2.5, 7.5)                      # 分布の歪み
+N <- c(50, 100, 200, 300, 500, 1000)  # サンプルの数
 
-simu_n  <- 1000 # シミュレーションをそれぞれ何回行うか
+simu_n  <- 100 # シミュレーションをそれぞれ何回行うか
 
-estimates_title <- c("a", "b", "Mu x", "Sx2", "Se2", "Sx3", "Se3");
+#estimates_title <- c("a", "b", "Mu x", "Sx2", "Se2", "Sx3", "Se3");
 
 for(b in B){
     for(k in K){
@@ -23,10 +23,13 @@ for(b in B){
             xy_rejection <- 0
             yx_rejection <- 0
 
-            e_xy  <- NULL # estimates for x -> y
-            e_yx  <- NULL # estimates for y -> x
-            se_xy <- NULL # SE for x -> y
-            se_yx <- NULL # SE for y -> x
+            e_xy  <- NULL # estimates for x -> y (correct)
+            e_yx  <- NULL # estimates for y -> x (wrong)
+            se_xy <- NULL # SE for x -> y (c)
+            se_yx <- NULL # SE for y -> x (w)
+
+            chi2_xy <- NULL
+            chi2_yx <- NULL
 
             repeat{
                 theta <- 1/sqrt(k) # xの分散を1にするためにthetaを設定
@@ -37,8 +40,8 @@ for(b in B){
                 y <- b * x + e # 定数は結果に影響しないため不要
 
                 # 推定
-                retval_xy <- ADF.reg(x, y)
-                retval_yx <- ADF.reg(y, x)
+                rnlm_xy <- ADF.reg(x, y)
+                rnlm_yx <- ADF.reg(y, x)
 
 #                print(c(
 #                    i,                                  # 実験番号
@@ -48,13 +51,18 @@ for(b in B){
 #                ))
 
                 # xy/yx双方のコード値が2以下なら次に進む
-                if(retval_xy$rnlm$code <= 2 && retval_yx$rnlm$code <= 2){
+                if(rnlm_xy$code <= 2 && rnlm_yx$code <= 2){
+                    retval_xy <- ADF.res(rnlm_xy);
+                    retval_yx <- ADF.res(rnlm_yx);
 
                     # save
-                    e_xy  <- rbind( e_xy,  retval_xy$rnlm$estimate )
-                    e_yx  <- rbind( e_yx,  retval_yx$rnlm$estimate )
+                    e_xy  <- rbind( e_xy,  rnlm_xy$estimate )
+                    e_yx  <- rbind( e_yx,  rnlm_yx$estimate )
                     se_xy <- rbind( se_xy, retval_xy$se )
                     se_yx <- rbind( se_yx, retval_yx$se )
+
+                    chi2_xy <- rbind( chi2_xy, retval_xy$chi2 )
+                    chi2_yx <- rbind( chi2_yx, retval_yx$chi2 )
 
                     if(retval_xy$chi2 < retval_yx$chi2){
                         success <- success + 1
@@ -91,6 +99,9 @@ for(b in B){
             write.csv(e_yx,  file = sprintf("data/e-yx-%s.csv", id))
             write.csv(se_xy, file = sprintf("data/se-xy-%s.csv", id))
             write.csv(se_yx, file = sprintf("data/se-yx-%s.csv", id))
+
+            write.csv(chi2_xy, file = sprintf("data/chi2-xy-%s.csv", id))
+            write.csv(chi2_yx, file = sprintf("data/chi2-yx-%s.csv", id))
         }
     }
 }
